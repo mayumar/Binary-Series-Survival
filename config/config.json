@@ -1,0 +1,21 @@
+{
+    "paths": {
+        "input_data": "dataset/",
+        "input_correladas": "variables_to_drop_23_02_2026.json",
+        "mtbfs": "config/horizon_from_mtbf.json",
+        "event2vec_dir": "data_preprocessing/event2vec"
+    },
+    "parameters": {
+        "start_idx": 1538765,
+        "max_horizon": 8,
+        "window_size": 900,
+        "prop_stride": 10,
+        "epochs": 100,
+        "early_stopping_patience": 5,
+        "learning_rate": 1e-3,
+        "patience": 3,
+        "tau_severity": 0.5,
+        "tau_alarm": 0.5
+    },
+    "bin_edges": [0, 1, 4, 8]
+}
