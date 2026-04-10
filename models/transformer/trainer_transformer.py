@@ -4,11 +4,11 @@ from typing import Optional, List
 from torch.utils.data import DataLoader
 
 # Asegúrate de que importas desde el fichero correcto
-from model_development.models.lstm.LSTM import Survival_LSTM
-from model_development.models.transformer.tranformer import GCU_Transformer
+from models.lstm.LSTM import Survival_LSTM
+from models.transformer.tranformer import GCU_Transformer
 
-from model_development.models.utils.losses import DeepHitLoss, DiscreteHazardNLL
-from model_development.models.utils.functions import train
+from models.utils.losses import DeepHitLoss, DiscreteHazardNLL
+from models.utils.functions import train
 import pandas as pd
 import numpy as np
 
