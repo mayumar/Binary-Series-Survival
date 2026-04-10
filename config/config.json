@@ -1,6 +1,6 @@
 {
     "paths": {
-        "input_data": "dataset/",
+        "input_data": "dataset/file_and_merge_25-03-2026.csv",
         "input_correladas": "variables_to_drop_23_02_2026.json",
         "mtbfs": "config/horizon_from_mtbf.json",
         "event2vec_dir": "data_preprocessing/event2vec"

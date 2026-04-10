@@ -5,9 +5,9 @@ import json
 import torch
 from torch.utils.data import DataLoader
 
-from model_development.data_loading.data_loader import load_data 
-from model_development.data_preprocessing.preprocess import preprocess_data
-from model_development.models.lstm import trainer_lstm
+from data_loading.data_loader import load_data 
+from data_preprocessing.preprocess import preprocess_data
+from models.lstm import trainer_lstm
 
 import collections
 
@@ -230,6 +230,8 @@ if __name__ == "__main__":
         --config : Path to configuration file.
         --device : Execution device (cuda/cpu).
     """
+    # import logging
+    # logging.basicConfig(level=logging.DEBUG)
     parser = argparse.ArgumentParser(description="Model training for survival analysis")
     parser.add_argument("--target", type=str, required=True, help="Target variable (failure mode) to predict")
     parser.add_argument("--config", type=str, default="config/config.json", help="Path to configuration file")

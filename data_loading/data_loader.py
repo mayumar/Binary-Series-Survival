@@ -53,6 +53,10 @@ def load_data(
     df = pd.read_csv(input, usecols=["time", fail_to_pred])
     df["time"] = pd.to_numeric(df["time"], errors="coerce")
     df = df.iloc[start_idx:].reset_index(drop=True)
+    # df = df.drop(["name"], axis=1)
+    df = df.sort_values("time").reset_index(drop=True)
+    
+    df = df.bfill().ffill()
 
     # Detect rising edge of the failure signal (0 -> 1 transition)
     # This defines the exact time instant when the failure begins
