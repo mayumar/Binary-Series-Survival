@@ -41,12 +41,11 @@ def save_word2vec_model(model: Word2Vec, model_path: str):
 def save_event2vec_bundle_splits(
     out_dir: str,
     *,
-    # w2v_model: Word2Vec,
     dropped_cols: Sequence[str],
     scaler: StandardScaler,
-    train_tokens: Sequence[Sequence[str]],
-    val_tokens: Sequence[Sequence[str]],
-    test_tokens: Sequence[Sequence[str]],
+    train_tokens: Optional[Sequence[Sequence[str]]] = None,
+    val_tokens: Optional[Sequence[Sequence[str]]] = None,
+    test_tokens: Optional[Sequence[Sequence[str]]] = None,
     train_num: Optional[Sequence[np.ndarray]] = None,
     val_num: Optional[Sequence[np.ndarray]] = None,
     test_num: Optional[Sequence[np.ndarray]] = None,
@@ -102,9 +101,12 @@ def save_event2vec_bundle_splits(
     joblib.dump(list(dropped_cols), os.path.join(out_dir, "dropped_cols.joblib"), compress=3)
     joblib.dump(scaler, os.path.join(out_dir, "scaler.joblib"), compress=3)
 
-    joblib.dump(train_tokens, os.path.join(out_dir, "train_tokens.joblib"), compress=3)
-    joblib.dump(val_tokens,   os.path.join(out_dir, "val_tokens.joblib"), compress=3)
-    joblib.dump(test_tokens,  os.path.join(out_dir, "test_tokens.joblib"), compress=3)
+    if train_tokens is not None:
+        joblib.dump(train_tokens, os.path.join(out_dir, "train_tokens.joblib"), compress=3)
+    if val_tokens is not None:
+        joblib.dump(val_tokens,   os.path.join(out_dir, "val_tokens.joblib"), compress=3)
+    if test_tokens is not None:
+        joblib.dump(test_tokens,  os.path.join(out_dir, "test_tokens.joblib"), compress=3)
 
     if train_num is not None:
         joblib.dump(train_num, os.path.join(out_dir, "train_num.joblib"), compress=3)
@@ -147,13 +149,13 @@ def load_event2vec_bundle_splits(bundle_dir: str, w2v_path: str) -> Dict[str, An
     out["dropped_cols"] = joblib.load(os.path.join(bundle_dir, "dropped_cols.joblib"))
     out["scaler"] = joblib.load(os.path.join(bundle_dir, "scaler.joblib"))
 
-    out["train_tokens"] = joblib.load(os.path.join(bundle_dir, "train_tokens.joblib"))
-    out["val_tokens"]   = joblib.load(os.path.join(bundle_dir, "val_tokens.joblib"))
-    out["test_tokens"]  = joblib.load(os.path.join(bundle_dir, "test_tokens.joblib"))
-
     # optional keys
     def maybe(path):
         return joblib.load(path) if os.path.exists(path) else None
+
+    out["train_tokens"] = maybe(os.path.join(bundle_dir, "train_tokens.joblib"))
+    out["val_tokens"]   = maybe(os.path.join(bundle_dir, "val_tokens.joblib"))
+    out["test_tokens"]  = maybe(os.path.join(bundle_dir, "test_tokens.joblib"))
 
     out["train_num"] = maybe(os.path.join(bundle_dir, "train_num.joblib"))
     out["val_num"]   = maybe(os.path.join(bundle_dir, "val_num.joblib"))

@@ -111,7 +111,7 @@ def debug_data_distribution(loader: DataLoader, num_bins: int):
     print("--------------------------------------\n")
 
 
-def execute_training(fail_to_pred: str, config: dict, device_str: str = "cuda"):
+def execute_training(fail_to_pred: str, config: dict, device_str: str = "cuda", use_word2vec: bool = True):
     """
     Execute the full survival training pipeline for a given target failure.
 
@@ -183,7 +183,7 @@ def execute_training(fail_to_pred: str, config: dict, device_str: str = "cuda"):
     # 4. Preprocessing and DataLoader creation
     print("Preprocessing and generating embeddings + time bins...")
     create_event2vec_folders(fail_to_pred, config)
-    train_loader, val_loader, test_loader = preprocess_data(train_data, val_data, test_data, fail_to_pred, config)
+    train_loader, val_loader, test_loader = preprocess_data(train_data, val_data, test_data, fail_to_pred, config, use_word2vec)
 
     # Depuracion
     debug_data_distribution(train_loader, train_loader.num_time_bins)
@@ -236,11 +236,13 @@ if __name__ == "__main__":
     parser.add_argument("--target", type=str, required=True, help="Target variable (failure mode) to predict")
     parser.add_argument("--config", type=str, default="config/config.json", help="Path to configuration file")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use (cuda or cpu)")
+    parser.add_argument("-w", "--disable_word2vec", action="store_true", help="Disable word2vec feature.")
     
     args = parser.parse_args()
     
     os.makedirs("saved_models", exist_ok=True)
 
     config = load_config(args.config)
+    use_word2vec = not args.disable_word2vec
     
-    execute_training(args.target, config, device_str=args.device)
+    execute_training(fail_to_pred=args.target, config=config, device_str=args.device, use_word2vec=use_word2vec)

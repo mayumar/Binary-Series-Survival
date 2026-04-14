@@ -128,8 +128,9 @@ def preprocess_df(
     var_threshold: float = 0.0,
     corr_input: str = "variables_a_eliminar.json",
     window_size: int = 900,
-    stride: int = 900
-) -> Tuple[List[np.ndarray], List[np.ndarray], Word2Vec, List[str], StandardScaler, List[List[str]], List[str]]:
+    stride: int = 900,
+    use_word2vec: bool = True
+) -> Tuple[List[np.ndarray], List[np.ndarray], Optional[Word2Vec], List[str], StandardScaler, Optional[List[List[str]]], List[str]]:
     """
     Preprocess a dataframe split for model input generation.
 
@@ -144,6 +145,10 @@ def preprocess_df(
       4) Convert binary rows into token sequences.
       5) Apply sliding windows to both token and numeric sequences.
       6) Transform token windows into embeddings using a Word2Vec model.
+
+    If ``use_word2vec=True``, binary rows are tokenized and embedded with Word2Vec.
+    If ``use_word2vec=False``, raw binary windows are returned directly without
+    tokenization or embedding.
 
     :param df: Input feature dataframe.
     :type df: pandas.DataFrame
@@ -174,6 +179,8 @@ def preprocess_df(
     :type window_size: int
     :param stride: Step size between consecutive windows.
     :type stride: int
+    :param use_word2vec: Whether to encode binary features with Word2Vec.
+    :type use_word2vec: bool
     :return: A tuple containing:
 
         - ``binary_embeddings``: List of binary embedding windows.
@@ -222,19 +229,42 @@ def preprocess_df(
 
     assert scaler is not None
 
-    # 4. Tokens + windowing
-    binary_tokens = []
+    # 4. Windowing
+    binary_data = []
     numeric_data = []
+    binary_tokens = [] if use_word2vec else None
 
-    tokens = binary_df_to_token_sequence(binary_df)
+    binary_values = binary_df.to_numpy(dtype=np.float32) if not binary_df.empty else np.empty((len(df), 0), dtype=np.float32)
+    numeric_values = numeric_df.to_numpy(dtype=np.float32) if not numeric_df.empty else np.empty((len(df), 0), dtype=np.float32)
 
-    for i in range(0, len(tokens) - window_size, stride):
-        binary_tokens.append(tokens[i:i + window_size])
-        numeric_data.append(numeric_df[i:i + window_size].values)
+    tokens = None
+    if use_word2vec:
+        tokens = binary_df_to_token_sequence(binary_df)
 
-    binary_embeddings, binary_model = tokens_list_to_embeddings(binary_tokens, window_size, binary_model)
+    for i in range(0, len(df) - window_size + 1, stride):
+        binary_window = binary_values[i:i + window_size]
+        numeric_window = numeric_values[i:i + window_size]
 
-    return binary_embeddings, numeric_data, binary_model, dropped_cols, scaler, binary_tokens, numeric_cols
+        binary_data.append(binary_window)
+        numeric_data.append(numeric_window)
+
+        if use_word2vec and binary_tokens is not None and tokens is not None:
+            binary_tokens.append(tokens[i:i + window_size])
+
+    # 5. Binary representation
+    if use_word2vec:
+        if binary_tokens is None:
+            raise ValueError("binary_tokens is None although use_word2vec=True.")
+
+        binary_embeddings, binary_model = tokens_list_to_embeddings(
+            binary_tokens,
+            window_size,
+            binary_model
+        )
+        return binary_embeddings, numeric_data, binary_model, dropped_cols, scaler, binary_tokens, numeric_cols
+
+    # No Word2Vec
+    return binary_data, numeric_data, None, dropped_cols, scaler, None, numeric_cols
 
 
 def format_and_concat(
@@ -271,7 +301,8 @@ def preprocess_data(
     val: Tuple[List, List, List],
     test: Tuple[List, List, List],
     fail_to_pred: str,
-    config: dict
+    config: dict,
+    use_word2vec: bool = True
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
     Prepare train, validation, and test :class:`torch.utils.data.DataLoader` objects
@@ -347,14 +378,15 @@ def preprocess_data(
     print(bundle_path)
     event2vec_model_path = os.path.join(event2vec_dir, fail_to_pred, "binary_event2vec.model")
 
-    binary_model = load_word2vec_model(event2vec_model_path)
+    binary_model = None
+    if use_word2vec:
+        binary_model = load_word2vec_model(event2vec_model_path)
+        if binary_model is not None:
+            print(f"[CACHE] Loading Word2Vec model from: {event2vec_model_path}")
+        else:
+            print(f"[CACHE] No Word2Vec model found at: {event2vec_model_path}. A new model will be trained.")
 
-    if binary_model is not None:
-        print(f"[CACHE] Loading Word2Vec model from: {event2vec_model_path}")
-    else:
-        print(f"[CACHE] No Word2Vec model found at: {event2vec_model_path}. A new model will be trained.")
-
-    if os.path.exists(bundle_path) and binary_model is not None:
+    if os.path.exists(bundle_path) and (binary_model is not None or not use_word2vec):
         print(f"[CACHE] Loading bundle from: {bundle_path}")
         bundle = load_event2vec_bundle_splits(bundle_path, event2vec_model_path)
 
@@ -375,12 +407,13 @@ def preprocess_data(
         x_test_bin  = bundle["test_bin"]
 
         # Recalculate embeddings if not exist
-        if x_train_bin is None:
-            x_train_bin, _ = tokens_list_to_embeddings(train_tokens, window_size, binary_model)
-        if x_val_bin is None:
-            x_val_bin, _ = tokens_list_to_embeddings(val_tokens, window_size, binary_model)
-        if x_test_bin is None:
-            x_test_bin, _ = tokens_list_to_embeddings(test_tokens, window_size, binary_model)
+        if use_word2vec:
+            if x_train_bin is None:
+                x_train_bin, _ = tokens_list_to_embeddings(train_tokens, window_size, binary_model)
+            if x_val_bin is None:
+                x_val_bin, _ = tokens_list_to_embeddings(val_tokens, window_size, binary_model)
+            if x_test_bin is None:
+                x_test_bin, _ = tokens_list_to_embeddings(test_tokens, window_size, binary_model)
 
     else:
         print(f"[CACHE] Bundle not found. Building and saving to: {bundle_path}")
@@ -392,7 +425,8 @@ def preprocess_data(
             scaler=None,
             corr_input=corr_input_path,
             window_size=window_size,
-            stride=stride
+            stride=stride,
+            use_word2vec=use_word2vec
         )
 
         x_val_bin, x_val_num, _, _, _, val_tokens, _ = preprocess_df(
@@ -403,7 +437,8 @@ def preprocess_data(
             numeric_cols=numeric_cols,
             corr_input=corr_input_path,
             window_size=window_size,
-            stride=stride
+            stride=stride,
+            use_word2vec=use_word2vec
         )
 
         x_test_bin, x_test_num, _, _, _, test_tokens, _ = preprocess_df(
@@ -414,26 +449,31 @@ def preprocess_data(
             numeric_cols=numeric_cols,
             corr_input=corr_input_path,
             window_size=window_size,
-            stride=stride
+            stride=stride,
+            use_word2vec=use_word2vec
         )
 
-        save_word2vec_model(binary_model, event2vec_model_path)
+        if use_word2vec and binary_model is not None:
+            save_word2vec_model(binary_model, event2vec_model_path)
 
         save_event2vec_bundle_splits(
             bundle_path,
-            # w2v_model=binary_model,
             dropped_cols=dropped_cols,
             scaler=scaler,
-            train_tokens=train_tokens,
-            val_tokens=val_tokens,
-            test_tokens=test_tokens,
+            train_tokens=train_tokens if use_word2vec else None,
+            val_tokens=val_tokens if use_word2vec else None,
+            test_tokens=test_tokens if use_word2vec else None,
             train_num=x_train_num,
             val_num=x_val_num,
             test_num=x_test_num,
             train_bin=x_train_bin,
             val_bin=x_val_bin,
             test_bin=x_test_bin,
-            metadata={"window_size": window_size, "stride": stride}
+            metadata={
+                "window_size": window_size,
+                "stride": stride,
+                "use_word2vec": use_word2vec
+            }
         )
 
     h = 3600
