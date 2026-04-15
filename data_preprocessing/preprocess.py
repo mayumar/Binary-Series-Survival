@@ -17,6 +17,7 @@ from .bundle import (
     load_word2vec_model,
     save_word2vec_model
 )
+from data_loading.binary_statistical_data import summarize_binary_dataframe
 
 
 def drop_low_variance_features(df: pd.DataFrame, var_threshold: float = 0.0) -> Tuple[pd.DataFrame, List[str]]:
@@ -423,6 +424,7 @@ def preprocess_data(
             dropped_cols=[],
             binary_model=binary_model,
             scaler=None,
+            var_threshold=0.0001,
             corr_input=corr_input_path,
             window_size=window_size,
             stride=stride,
@@ -435,6 +437,7 @@ def preprocess_data(
             binary_model=binary_model,
             scaler=scaler,
             numeric_cols=numeric_cols,
+            var_threshold=0.0001,
             corr_input=corr_input_path,
             window_size=window_size,
             stride=stride,
@@ -447,6 +450,7 @@ def preprocess_data(
             binary_model=binary_model,
             scaler=scaler,
             numeric_cols=numeric_cols,
+            var_threshold=0.0001,
             corr_input=corr_input_path,
             window_size=window_size,
             stride=stride,
@@ -475,6 +479,44 @@ def preprocess_data(
                 "use_word2vec": use_word2vec
             }
         )
+
+        binary_cols = [
+            col for col in x_train.columns
+            if col not in ["id", "time", "name"] + numeric_cols + dropped_cols
+        ]
+
+        train_stats = summarize_binary_dataframe(
+            pd.DataFrame(x_train[binary_cols]),
+            partition_name="train"
+        )
+
+        val_stats = summarize_binary_dataframe(
+            pd.DataFrame(x_val[binary_cols]),
+            partition_name="val"
+        )
+
+        test_stats = summarize_binary_dataframe(
+            pd.DataFrame(x_test[binary_cols]),
+            partition_name="test"
+        )
+
+        # Concatenar
+        all_stats = pd.concat([train_stats, val_stats, test_stats], ignore_index=True)
+
+        # Pivotar a formato ancho
+        wide_stats = all_stats.pivot(index="variable", columns="partition")
+
+        # Aplanar MultiIndex de columnas
+        wide_stats.columns = [
+            f"{metric}_{partition}" for metric, partition in wide_stats.columns
+        ]
+
+        wide_stats = wide_stats.reset_index()
+
+        # Guardar CSV
+        wide_stats.to_csv("binary_distribution_summary.csv", index=False)
+
+        print(wide_stats.head())
 
     h = 3600
     custom_bin_edges = [edge * h for edge in config['bin_edges']]

@@ -1,6 +1,6 @@
 {
     "paths": {
-        "input_data": "dataset/file_and_merge_25-03-2026.csv",
+        "input_data": "dataset/file_and_14-01-2026_25-03-2026_filtrado.csv",
         "input_correladas": "variables_to_drop_23_02_2026.json",
         "mtbfs": "config/horizon_from_mtbf.json",
         "event2vec_dir": "data_preprocessing/event2vec"
@@ -17,5 +17,6 @@
         "tau_severity": 0.7,
         "tau_alarm": 0.7
     },
-    "bin_edges": [0, 1, 4, 8]
+    "bin_edges": [0, 1, 4, 8],
+    "numeric_cols": ["bascula_harina", "bascula_liquido", "temperatura_liquido", "temperatura_masa"]
 }
