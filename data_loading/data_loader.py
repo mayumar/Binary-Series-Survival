@@ -58,6 +58,9 @@ def load_data(
     
     df = df.bfill().ffill()
 
+    df[fail_to_pred] = df[fail_to_pred].rolling(window=10).max()
+    df = df.reset_index(drop=True)
+
     # Detect rising edge of the failure signal (0 -> 1 transition)
     # This defines the exact time instant when the failure begins
     fail_event = (df[fail_to_pred] == 1) & (df[fail_to_pred].shift(1, fill_value=0) == 0)
