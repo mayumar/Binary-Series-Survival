@@ -14,8 +14,8 @@
         "early_stopping_patience": 5,
         "learning_rate": 1e-3,
         "patience": 3,
-        "tau_severity": 0.7,
-        "tau_alarm": 0.7
+        "tau_severity": 0.8,
+        "tau_alarm": 0.8
     },
     "bin_edges": [0, 1, 4, 8],
     "numeric_cols": ["bascula_harina", "bascula_liquido", "temperatura_liquido", "temperatura_masa"]

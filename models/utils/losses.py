@@ -52,46 +52,33 @@ class DiscreteHazardNLL(nn.Module):
         loss_rank = prediction.new_tensor(0.0)
 
         # Compute the CDF (cumulative risk) over time for all samples
-        cdf = torch.cumsum(prediction, dim=2)  # (B, E, T)
+        # cdf = torch.cumsum(prediction, dim=2)  # (B, E, T)
 
-        # haz = prediction.clamp(self.eps, 1.0 - self.eps)
-        # surv = torch.cumprod(1.0 - haz, dim=2)   # (B, E, T)
-        # cdf = 1.0 - surv                         # (B, E, T)
+        haz = prediction.clamp(self.eps, 1.0 - self.eps)
+        surv = torch.cumprod(1.0 - haz, dim=2)   # (B, E, T)
+        cdf = 1.0 - surv                         # (B, E, T)
         # Iterate over each event type to compute event-specific ranking losses
         for k in range(num_events):
-            # Select the CDF corresponding only to event k
             cdf_k = cdf[:, k, :]  # (B, T)
 
-            # Build pairwise comparison matrix (i, j)
-            # We compare subject i (failed at T_i) with subject j (T_j > T_i)
+            y_i = y.view(batch_size, 1)
+            y_j = y.view(1, batch_size)
 
-            # 1) Time ordering mask: T_i < T_j
-            y_i = y.view(batch_size, 1)         # (B, 1)
-            y_j = y.view(1, batch_size)         # (1, B)
             mask_time_order = (y_i < y_j).float()
-
-            # 2) Only consider i if it is NOT censored (i.e., actually experienced the event)
-            mask_uncensored_i = (1.0 - censor).view(batch_size, 1)  # (B, 1)
-
-            # Final mask of valid comparable pairs
+            mask_uncensored_i = (1.0 - censor).view(batch_size, 1)
             valid_pairs = mask_time_order * mask_uncensored_i
 
             if valid_pairs.sum() == 0:
                 continue
 
-            # Get the estimated risk at time T_i for both subjects
-            # Estimated risk = CDF(T_i)
+            idx = torch.arange(batch_size, device=cdf_k.device)
 
-            # Risk for subject i at its own time T_i
-            risk_i = cdf_k.gather(1, y_i).float()  # (B, 1)
-
-            # Risk for subject j evaluated at time T_i (important: evaluated at T_i, not at T_j)
-            y_i_mat = y_i.expand(-1, batch_size)   # (B, B)
-            risk_j = cdf_k.gather(1, y_i_mat)      # (B, B)
+            risk_i = cdf_k[idx, y].unsqueeze(1)   # (B, 1)
+            risk_j = cdf_k[:, y].T                # (B, B)
 
             # Compute risk difference: R_i - R_j
             # We want R_i > R_j (earlier failure should imply higher risk)
-            diff = risk_i.expand(-1, batch_size) - risk_j  # (B, B)
+            diff = risk_i - risk_j
 
             # Loss = exp(-(R_i - R_j) / sigma)
             rank_loss_matrix = torch.exp(-diff / self.sigma) * valid_pairs
@@ -123,12 +110,12 @@ class DiscreteHazardNLL(nn.Module):
         h = hazard[:, 0, :].clamp(self.eps, 1.0 - self.eps)  # (B, T)
         batch_size, T = h.shape
 
-        # Ranking term (computed on the provided hazard tensor)
-        rank = self.ranking_loss(hazard, y, c)
-
         # Sanity checks
         if torch.any(y < 0):
             raise ValueError(f"Found y < 0: min={int(y.min())}")
+
+        # Ranking term (computed on the provided hazard tensor)
+        rank = self.ranking_loss(hazard, y, c)
 
         # Events cannot have y == T (only censored samples may use y == T)
         if torch.any((c == 0) & (y >= T)):
