@@ -7,7 +7,8 @@ from torch.utils.data import DataLoader
 
 from data_loading.data_loader import load_data 
 from data_preprocessing.preprocess import preprocess_data
-from models.lstm import trainer_lstm
+from models.lstm.trainer_lstm import train_lstm
+from config.loader import load_json_config
 
 import collections
 
@@ -20,9 +21,10 @@ def load_config(config_path: str) -> dict:
     :return: Parsed configuration dictionary.
     :rtype: dict
     """
-    with open(config_path, "r") as f:
-        config = json.load(f)
-    return config
+    # with open(config_path, "r") as f:
+    #     config = json.load(f)
+    # return config
+    return load_json_config(config_path)
 
 def calculate_horizon(mtbf_f: float, max_h: int) -> int:
     """
@@ -193,18 +195,26 @@ def execute_training(fail_to_pred: str, config: dict, device_str: str = "cuda", 
     # Si quisieras predecir 2 fallos a la vez, cargarías ambos en 'y' y pondrías num_events=2
     print("Starting model training...")
     
-    model = trainer_lstm.train_lstm(
+    # model = trainer_lstm.train_lstm(
+    #     train_loader=train_loader,
+    #     valid_loader=val_loader,
+    #     test_loader=test_loader, 
+    #     device=device,
+    #     epochs=config['parameters']['epochs'],
+    #     early_stopping_patience=config['parameters']['early_stopping_patience'],
+    #     lr=config['parameters']['learning_rate'],
+    #     num_events=1,
+    #     tau_severity=config['parameters']['tau_severity'],
+    #     tau_alarm=config['parameters']['tau_alarm'],
+    #     bin_edges=config['bin_edges']
+    # )
+
+    model = train_lstm(
         train_loader=train_loader,
         valid_loader=val_loader,
-        test_loader=test_loader, 
-        device=device,
-        epochs=config['parameters']['epochs'],
-        early_stopping_patience=config['parameters']['early_stopping_patience'],
-        lr=config['parameters']['learning_rate'],
-        num_events=1,
-        tau_severity=config['parameters']['tau_severity'],
-        tau_alarm=config['parameters']['tau_alarm'],
-        bin_edges=config['bin_edges']
+        test_loader=test_loader,
+        config_path=args.config,
+        device_override=device
     )
 
     print("Training completed.")

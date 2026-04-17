@@ -84,6 +84,7 @@ class DiscreteHazardNLL(nn.Module):
             rank_loss_matrix = torch.exp(-diff / self.sigma) * valid_pairs
             loss_rank = loss_rank + rank_loss_matrix.sum() / (valid_pairs.sum() + 1e-8)
 
+        # return loss_rank / float(num_events)
         return loss_rank / float(num_events)
 
     def forward(self, hazard: torch.Tensor, y: torch.Tensor, censor: torch.Tensor) -> torch.Tensor:
