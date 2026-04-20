@@ -96,6 +96,59 @@ class SurvivalEvaluator:
             if any(event_mask) else 0.0
         )
 
+        tp = np.sum(res["alarm_flag"][event_mask])
+        fn = np.sum(~res["alarm_flag"][event_mask])
+        fp = np.sum(res["alarm_flag"][cens_mask])
+        tn = np.sum(~res["alarm_flag"][cens_mask])
+
+        print("\n===== MATRIZ DE CONFUSIÓN =====")
+        print(f"TP: {tp} | FN: {fn}")
+        print(f"FP: {fp} | TN: {tn}")
+
+        # risk_final = res["pmf"].sum(axis=1)  # equivalente a riesgo acumulado final
+
+        # print("\n===== RIESGO FINAL =====")
+        # print(f"Eventos -> mean: {risk_final[event_mask].mean():.4f}, std: {risk_final[event_mask].std():.4f}")
+        # print(f"Censurados -> mean: {risk_final[cens_mask].mean():.4f}, std: {risk_final[cens_mask].std():.4f}")
+
+        # if event_mask.any():
+        #     print("\n===== TIEMPOS (EVENTOS) =====")
+        #     print(f"t_real (primeros 10): {t_true_mid[:10]}")
+        #     print(f"t_pred (primeros 10): {res['t_hat'][event_mask][:10]}")
+        #     print(f"Error medio: {mae:.4f}")
+        #     print(f"Error con signo medio: {(res['t_hat'][event_mask] - t_true_mid).mean():.4f}")
+
+        # print("\n===== LEAD TIMES =====")
+        # print(f"N con alarma antes del evento: {len(leads)}")
+
+        # if len(leads) > 0:
+        #     print(f"Lead times (primeros 10): {leads[:10]}")
+        #     print(f"Min: {leads.min():.4f}, Max: {leads.max():.4f}")
+        #     print(f"Mean: {mean_lead:.4f}")
+        #     print(f"% positivos (alarma anticipada): {(leads > 0).mean():.4f}")
+
+        # print("\n===== CRUCE DE UMBRAL =====")
+        # print(f"% muestras que cruzan tau_alarm: {res['has_cross'].mean():.4f}")
+        # print(f"% muestras con alarma final (tau_severity): {res['alarm_flag'].mean():.4f}")
+
+        # print("\n===== PMF MEDIA =====")
+        # print(f"PMF media eventos (primeros 10 bins): {mean_p_event[:10]}")
+        # print(f"PMF media censurados (primeros 10 bins): {mean_p_cens[:10]}")
+
+        # print("\n===== EJEMPLOS INDIVIDUALES =====")
+        # for i in range(min(5, len(res["y"]))):
+        #     print(f"\n--- Sample {i} ---")
+        #     print(f"y (bin real): {res['y'][i]}")
+        #     print(f"c (0=evento,1=cens): {res['c'][i]}")
+        #     print(f"t_hat: {res['t_hat'][i]:.4f}")
+        #     print(f"alarm_flag: {res['alarm_flag'][i]}")
+        #     print(f"k_alarm: {res['k_alarm'][i]}")
+        #     print(f"has_cross: {res['has_cross'][i]}")
+
+        # print("\n===== UMBRALES =====")
+        # print(f"tau_alarm: {self.cfg.tau_alarm}")
+        # print(f"tau_severity: {self.cfg.tau_severity}")
+
         return EvalMetrics(
             loss=total_loss / len(loader),
             tpr=float(tpr),

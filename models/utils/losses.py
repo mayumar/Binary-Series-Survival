@@ -153,7 +153,7 @@ class DiscreteHazardNLL(nn.Module):
             )
 
         ll = (1.0 - c) * ll_event + c * ll_cens
-        return -ll.mean() + rank
+        return -ll.mean() #+ 0.05 * rank
 
 
 

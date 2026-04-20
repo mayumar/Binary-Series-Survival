@@ -97,20 +97,20 @@ class Trainer:
             model.load_state_dict(best_state)
             print(f"Best model loaded with validation loss: {best_loss:.4f}")
 
-        if test_loader is not None:
-            test_metrics = self.evaluator.evaluate(model, test_loader, self.cfg.device)
-            print(
-                f"\n----------------------------------------"
-                f"\nTEST SET | Events: {test_metrics.n_events} | Censored: {test_metrics.n_cens}"
-                f"\nTEST     | Loss: {test_metrics.loss:.4f} | "
-                f"TPR: {test_metrics.tpr:.4f} | "
-                f"FPR: {test_metrics.fpr:.4f} | "
-                f"MAE: {test_metrics.mae_h:.4f}"
-                f"\n         | Lead: {test_metrics.lead_time_h:.4f} | "
-                f"LeadCont: {test_metrics.lead_time_cont_h:.4f} | "
-                # f"PositiveLeadRatio: {test_perc_pos:.2f}"
-                f"\n         | Mean P(event): {np.round(test_metrics.mean_p_event, 3)}"
-                f"\n         | Mean P(cens):  {np.round(test_metrics.mean_p_cens, 3)}"
-            )
+            if test_loader is not None:
+                test_metrics = self.evaluator.evaluate(model, test_loader, self.cfg.device)
+                print(
+                    f"\n----------------------------------------"
+                    f"\nTEST SET | Events: {test_metrics.n_events} | Censored: {test_metrics.n_cens}"
+                    f"\nTEST     | Loss: {test_metrics.loss:.4f} | "
+                    f"TPR: {test_metrics.tpr:.4f} | "
+                    f"FPR: {test_metrics.fpr:.4f} | "
+                    f"MAE: {test_metrics.mae_h:.4f}"
+                    f"\n         | Lead: {test_metrics.lead_time_h:.4f} | "
+                    f"LeadCont: {test_metrics.lead_time_cont_h:.4f} | "
+                    # f"PositiveLeadRatio: {test_perc_pos:.2f}"
+                    f"\n         | Mean P(event): {np.round(test_metrics.mean_p_event, 3)}"
+                    f"\n         | Mean P(cens):  {np.round(test_metrics.mean_p_cens, 3)}"
+                )
 
         return model

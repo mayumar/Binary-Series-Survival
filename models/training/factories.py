@@ -12,7 +12,7 @@ def build_lstm_model(cfg: LSTMModelConfig, ctx: TrainingContext) -> nn.Module:
         num_events=cfg.num_events,
         num_times=ctx.num_time_bins,
         hidden_size1=cfg.hidden_size1,
-        hidden_size2=cfg.hidden_size2
+        hidden_size2=cfg.hidden_size2,
     ).to(ctx.device)
 
 def build_loss() -> nn.Module:
