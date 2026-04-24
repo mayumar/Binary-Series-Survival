@@ -82,7 +82,7 @@ def load_data(
         mask = df[fallo_col] == u 
 
         # Filter very short cycles
-        if mask.sum() > 2*3600:
+        if mask.sum() > 30*60:
             df_cycle_index = df.loc[mask].index
             
             df_cycle = df.iloc[df_cycle_index]

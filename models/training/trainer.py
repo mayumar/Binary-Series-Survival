@@ -49,16 +49,28 @@ class Trainer:
         loss_fn: nn.Module,
         test_loader: Optional[DataLoader]
     ) -> nn.Module:
+        best_score = np.inf
         best_loss = np.inf
         best_state = None
         n_stop = 0
 
         for epoch in range(1, self.cfg.epochs + 1):
             train_loss = self.train_one_epoch(model, train_loader, optimizer, loss_fn)
+
+            train_metrics = self.evaluator.evaluate(model, train_loader, self.cfg.device)
             val_metrics = self.evaluator.evaluate(model, valid_loader, self.cfg.device)
+            score = (
+                val_metrics.fpr
+                - 0.5 * val_metrics.tpr
+                + 0.25 * val_metrics.brier_final
+                + 0.1 * val_metrics.loss
+            )
+
+
             # test_metrics = self.evaluator.evaluate(model, test_loader, self.cfg.device) if test_loader is not None else None
 
-            if val_metrics.loss < best_loss:
+            if score < best_score:
+                best_score = score
                 best_loss = val_metrics.loss
                 best_state = OrderedDict((k, v.detach().cpu().clone()) for k, v in model.state_dict().items())
                 n_stop = 0
@@ -73,18 +85,37 @@ class Trainer:
             print(
                 f"\n[Epoch {epoch:03d}] {mark}"
                 f"\n----------------------------------------"
+                f"\nTRAIN SET| Events: {train_metrics.n_events} | Censored: {train_metrics.n_cens}"
+                f"\nTRAIN    | Loss(step): {train_loss:.4f}"
+                f"\nTRAIN    | Loss(eval): {train_metrics.loss:.4f} | "
+                f"TPR: {train_metrics.tpr:.4f} | "
+                f"FPR: {train_metrics.fpr:.4f} | "
+                f"MAE: {train_metrics.mae_h:.4f}"
+                f"\n         | Lead: {train_metrics.lead_time_h:.4f} | "
+                f"LeadCont: {train_metrics.lead_time_cont_h:.4f}"
+                f"\n         | Mean P(event): {np.round(train_metrics.mean_p_event, 3)}"
+                f"\n         | Mean P(cens):  {np.round(train_metrics.mean_p_cens, 3)}"
+                f"\n         | RiskFinal(event): {train_metrics.mean_risk_final_event:.4f} | "
+                f"RiskFinal(cens): {train_metrics.mean_risk_final_cens:.4f} | "
+                f"Gap: {train_metrics.risk_gap:.4f} | "
+                f"Brier: {train_metrics.brier_final:.4f}"
                 f"\nVAL SET  | Events: {val_metrics.n_events} | Censored: {val_metrics.n_cens}"
-                f"\nTRAIN    | Loss: {train_loss:.4f}"
                 f"\nVAL      | Loss: {val_metrics.loss:.4f} | "
                 f"TPR: {val_metrics.tpr:.4f} | "
                 f"FPR: {val_metrics.fpr:.4f} | "
                 f"MAE: {val_metrics.mae_h:.4f}"
                 f"\n         | Lead: {val_metrics.lead_time_h:.4f} | "
-                f"LeadCont: {val_metrics.lead_time_cont_h:.4f} | "
-                # f"PositiveLeadRatio: {perc_pos:.2f}"
+                f"LeadCont: {val_metrics.lead_time_cont_h:.4f}"
                 f"\n         | Mean P(event): {np.round(val_metrics.mean_p_event, 3)}"
                 f"\n         | Mean P(cens):  {np.round(val_metrics.mean_p_cens, 3)}"
+                f"\n         | RiskFinal(event): {val_metrics.mean_risk_final_event:.4f} | "
+                f"RiskFinal(cens): {val_metrics.mean_risk_final_cens:.4f} | "
+                f"Gap: {val_metrics.risk_gap:.4f} | "
+                f"Brier: {val_metrics.brier_final:.4f}"
+                f"\n         | Score: {score:.4f}"
             )
+
+
 
             # if test_metrics is not None:
             #     print(

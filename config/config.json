@@ -32,8 +32,8 @@
         "device": "cuda"
     },
     "evaluation": {
-        "tau_severity": 0.7,
-        "tau_alarm": 0.7
+        "tau_alarm": 0.15,
+        "tau_severity": 0.2
     },
     "model": {
         "type": "lstm",

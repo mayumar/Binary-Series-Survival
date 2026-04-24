@@ -20,6 +20,11 @@ class EvalMetrics:
     n_cens: int
     mean_p_event: List[float]
     mean_p_cens: List[float]
+    mean_risk_final_event: float
+    mean_risk_final_cens: float
+    risk_gap: float
+    brier_final: float
+
 
 class SurvivalEvaluator:
     def __init__(self, loss_fn: nn.Module, cfg: EvalConfig):
@@ -61,19 +66,28 @@ class SurvivalEvaluator:
                     "alarm_flag": (risk[:, 0, -1] >= self.cfg.tau_severity),
                     "k_alarm": k_alarm,
                     "has_cross": has_cross,
-                    "pmf": pmf0
+                    "pmf": pmf0,
+                    "risk_final": risk[:, 0, -1]
                 })
         
         if len(loader) == 0 or len(all_results) == 0:
-            return EvalMetrics(float("nan"), 0.0, 0.0, float("nan"), [], 0.0, 0.0, 0, 0, [], [])
+            return EvalMetrics(float("nan"), 0.0, 0.0, float("nan"), [], 0.0, 0.0, 0, 0, [], [], 0.0, 0.0, 0.0, 0.0)
         
         res = {k: torch.cat([b[k] for b in all_results]).cpu().numpy() for k in all_results[0]}
         event_mask = res["c"] == 0
         cens_mask = res["c"] == 1
         pmf = res["pmf"]
 
+        risk_final = res["risk_final"]
+        target_final = (~cens_mask).astype(np.float32)
+
         mean_p_event = pmf[event_mask].mean(axis=0) if event_mask.any() else np.zeros(pmf.shape[1])
         mean_p_cens = pmf[cens_mask].mean(axis=0) if cens_mask.any() else np.zeros(pmf.shape[1])
+
+        mean_risk_final_event = risk_final[event_mask].mean() if event_mask.any() else 0.0
+        mean_risk_final_cens = risk_final[cens_mask].mean() if cens_mask.any() else 0.0
+        risk_gap = mean_risk_final_event - mean_risk_final_cens
+        brier_final = ((risk_final - target_final) ** 2).mean()
 
         tpr = res["alarm_flag"][event_mask].mean() if event_mask.any() else 0.0
         fpr = res["alarm_flag"][cens_mask].mean() if cens_mask.any() else 0.0
@@ -160,5 +174,9 @@ class SurvivalEvaluator:
             n_events=int(event_mask.sum()),
             n_cens=int(cens_mask.sum()),
             mean_p_event=mean_p_event.tolist(),
-            mean_p_cens=mean_p_cens.tolist()
+            mean_p_cens=mean_p_cens.tolist(),
+            mean_risk_final_event=float(mean_risk_final_event),
+            mean_risk_final_cens=float(mean_risk_final_cens),
+            risk_gap=float(risk_gap),
+            brier_final=float(brier_final),
         )

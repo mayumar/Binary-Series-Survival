@@ -16,7 +16,7 @@ def build_lstm_model(cfg: LSTMModelConfig, ctx: TrainingContext) -> nn.Module:
     ).to(ctx.device)
 
 def build_loss() -> nn.Module:
-    return DiscreteHazardNLL()
+    return DiscreteHazardNLL(lambda_alarm=0.2)
 
 def build_optimizer(model: nn.Module, cfg: TrainingConfig) -> torch.optim.Optimizer:
     return torch.optim.Adam(

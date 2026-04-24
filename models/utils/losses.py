@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class DiscreteHazardNLL(nn.Module):
     """Negative log-likelihood for a discrete-time hazard model plus a ranking term.
@@ -16,10 +17,11 @@ class DiscreteHazardNLL(nn.Module):
     :type sigma: float
     """
 
-    def __init__(self, eps: float = 1e-8, sigma: float = 0.2) -> None:
+    def __init__(self, eps: float = 1e-8, sigma: float = 0.2, lambda_alarm: float = 0.2) -> None:
         super().__init__()
         self.eps = float(eps)
         self.sigma = float(sigma)
+        self.lambda_alarm = float(lambda_alarm)
 
     def ranking_loss(self, prediction: torch.Tensor, y: torch.Tensor, censor: torch.Tensor) -> torch.Tensor:
         """Pairwise ranking loss on the cumulative incidence (CDF) over time.
@@ -153,7 +155,37 @@ class DiscreteHazardNLL(nn.Module):
             )
 
         ll = (1.0 - c) * ll_event + c * ll_cens
-        return -ll.mean() #+ 0.05 * rank
+        nll = -ll.mean() #+ 0.5 * rank
+
+        # Riesgo acumulado final (lógica de alarma)
+        survival = torch.cumprod(1.0 - h, dim=1)
+        risk_final = 1.0 - survival[:, -1]
+
+        target_alarm = 1.0 - c
+
+        loss_alarm_raw = F.binary_cross_entropy(
+            risk_final,
+            target_alarm,
+            reduction="none",
+        )
+
+        n_events = target_alarm.sum().clamp_min(1.0)
+        n_cens = c.sum().clamp_min(1.0)
+        n_total = target_alarm.numel()
+
+        event_weight = n_total / (2.0 * n_events)
+        cens_weight = n_total / (2.0 * n_cens)
+
+        sample_weight = torch.where(
+            target_alarm == 1.0,
+            event_weight,
+            cens_weight,
+        )
+
+        loss_alarm = (loss_alarm_raw * sample_weight).mean()
+
+        return nll #+ self.lambda_alarm * loss_alarm
+
 
 
 
