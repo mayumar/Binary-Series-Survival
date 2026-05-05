@@ -3,9 +3,11 @@ from torch.utils.data import DataLoader
 from torch import nn
 import torch
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Dict
 
 from config.schema import EvalConfig
+
+HORIZON_PRIORITY = ("short", "mid", "long")
 
 @dataclass
 class EvalMetrics:
@@ -30,6 +32,69 @@ class SurvivalEvaluator:
     def __init__(self, loss_fn: nn.Module, cfg: EvalConfig):
         self.loss_fn = loss_fn
         self.cfg = cfg
+
+    def ensure_horizon(
+        self,
+        surv_function: Dict[str, np.ndarray],
+    ) -> Dict[str, np.ndarray]:
+        mapping = {
+            "short": ["short"],
+            "mid": ["short", "mid"],
+            "long": ["short", "mid", "long"],
+        }
+
+        explored = mapping.get(self.cfg.target_horizon, [])
+        return {
+            horizon: surv_function[horizon]
+            for horizon in explored
+            if horizon in surv_function
+        }
+
+    def format_predictions(self, preds: np.ndarray) -> Dict[str, np.ndarray]:
+        default_prediction = self.cfg.default_prediction
+
+        if default_prediction is not None:
+            default = np.asarray(default_prediction, dtype=preds.dtype)
+
+            if default.shape[0] != preds.shape[1]:
+                raise ValueError(
+                    f"default_prediction must have {preds.shape[1]} values, "
+                    f"got {default.shape[0]}"
+                )
+
+            is_default = np.all(
+                np.isclose(
+                    preds,
+                    default[None, :],
+                    atol=self.cfg.default_atol,
+                    rtol=0,
+                ),
+                axis=1,
+            )
+        else:
+            is_default = np.zeros(preds.shape[0], dtype=bool)
+
+        preds = preds.copy()
+        preds[is_default, :] = 0.0
+
+        return {
+            "short": preds[:, 0],
+            "mid": preds[:, 1],
+            "long": preds[:, 2],
+        }
+
+
+    def alarm_flags_from_risk(self, risk: np.ndarray) -> np.ndarray:
+        predictions = self.format_predictions(risk)
+        filtered = self.ensure_horizon(predictions)
+
+        alarm_flag = np.zeros(risk.shape[0], dtype=bool)
+
+        for horizon in HORIZON_PRIORITY:
+            if horizon in filtered:
+                alarm_flag |= filtered[horizon] > self.cfg.tau_alarm
+
+        return alarm_flag
 
     def evaluate(self, model: nn.Module, loader: DataLoader, device: Union[str, torch.device]) -> EvalMetrics:
         model.eval()
@@ -63,7 +128,7 @@ class SurvivalEvaluator:
                     "y": y,
                     "c": c,
                     "t_hat": (pmf0 * bin_mid).sum(dim=1),
-                    "alarm_flag": (risk[:, 0, -1] >= self.cfg.tau_severity),
+                    "risk": risk[:, 0, :],
                     "k_alarm": k_alarm,
                     "has_cross": has_cross,
                     "pmf": pmf0,
@@ -74,6 +139,8 @@ class SurvivalEvaluator:
             return EvalMetrics(float("nan"), 0.0, 0.0, float("nan"), [], 0.0, 0.0, 0, 0, [], [], 0.0, 0.0, 0.0, 0.0)
         
         res = {k: torch.cat([b[k] for b in all_results]).cpu().numpy() for k in all_results[0]}
+        res["alarm_flag"] = self.alarm_flags_from_risk(res["risk"])
+
         event_mask = res["c"] == 0
         cens_mask = res["c"] == 1
         pmf = res["pmf"]

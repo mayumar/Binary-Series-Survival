@@ -58,18 +58,68 @@ def load_data(
     
     df = df.bfill().ffill()
 
-    df[fail_to_pred] = df[fail_to_pred].rolling(window=10).max()
-    df = df.reset_index(drop=True)
+    # =========================================================
+    # 1. Relleno de huecos pequeños (≤10 ceros)
+    # =========================================================
+    col = df[fail_to_pred]
 
-    # Detect rising edge of the failure signal (0 -> 1 transition)
-    # This defines the exact time instant when the failure begins
-    fail_event = (df[fail_to_pred] == 1) & (df[fail_to_pred].shift(1, fill_value=0) == 0)
+    groups = (col != col.shift()).cumsum()
+    group_sizes = col.groupby(groups).transform("size")
 
-    # Identify "Run-to-Failure" cycles
+    small_zero_gaps = (col == 0) & (group_sizes <= 10)
+
+    col = col.mask(small_zero_gaps, 1)
+    df[fail_to_pred] = col
+
+    # =========================================================
+    # 2. ELIMINAR INICIO SI COMIENZA EN 1
+    # =========================================================
+    first_zero = np.where(col == 0)[0][0]
+    df = df.iloc[first_zero:].reset_index(drop=True)
+    col = df[fail_to_pred]
+
+    # =========================================================
+    # 3. DETECTAR BLOQUES DE 1s (eventos base)
+    # =========================================================
+    groups = (col != col.shift()).cumsum()
+
+    is_one = col == 1
+
+    event_ids = np.where(is_one, groups, np.nan)
+    df["cycle_id"] = pd.Series(event_ids).ffill().values
+
+    # =========================================================
+    # 4. CONSTRUIR EVENTOS COMPLETOS (tu regla final)
+    # =========================================================
     fallo_col = f"fallo_{fail_to_pred}"
     df[fallo_col] = np.nan
-    df.loc[fail_event, fallo_col] = range(fail_event.sum())
-    df[fallo_col] = df[fallo_col].bfill()
+
+    for cid in np.unique(df["cycle_id"][~np.isnan(df["cycle_id"])]):
+        
+        mask = df["cycle_id"] == cid
+        idx = df.index[mask]
+
+        start = idx[0]
+        end = idx[-1]
+
+        # ----------------------------
+        # expandir inicio hasta último 0 previo
+        # ----------------------------
+        while start > 0 and df.loc[start - 1, fail_to_pred] == 0:
+            start -= 1
+
+        # ----------------------------
+        # expandir fin mientras continúe el bloque de 1s
+        # ----------------------------
+        while end + 1 < len(df) and df.loc[end + 1, fail_to_pred] == 1:
+            end += 1
+
+        df.loc[start:end, fallo_col] = cid
+
+    # =========================================================
+    # 5. PROPAGAR CICLO
+    # =========================================================
+    df[fallo_col] = df[fallo_col].ffill()
 
     y_data = []
     censorship_data = []
@@ -83,10 +133,13 @@ def load_data(
 
         # Filter very short cycles
         if mask.sum() > 30*60:
+            # Índices del dataset que pertenecen al ciclo u
             df_cycle_index = df.loc[mask].index
             
+            # Filas del ciclo
             df_cycle = df.iloc[df_cycle_index]
 
+            # Guarda las filas del ciclo en run_to_failure_index
             run_to_failure_index.append(df_cycle_index)
 
             t_obs, censorship = binary_to_tte_censored(
@@ -232,6 +285,7 @@ def read_csv_by_index_batches_sorted(
     dfs = [pd.concat(dfs, ignore_index=True) for dfs in results]
     # Select all features, including fail_to_pred
     x_cols = [c for c in dfs[0].columns if c not in ["time", "id"]]
+    # x_cols = [c for c in dfs[0].columns if c not in ["id"]]
     x_data = [df[x_cols] for df in dfs]
     return x_data
     

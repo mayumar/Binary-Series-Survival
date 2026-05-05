@@ -60,7 +60,10 @@ def parse_eval_config(raw: Dict[str, Any]) -> EvalConfig:
     return EvalConfig(
         tau_severity=evaluation.get("tau_severity", params["tau_severity"]),
         tau_alarm=evaluation.get("tau_alarm", params["tau_alarm"]),
-        bin_edges=raw.get("bin_edges", [0, 1, 4, 8])
+        bin_edges=raw.get("bin_edges", [0, 1, 4, 8]),
+        target_horizon=evaluation.get("target_horizon", "long"),
+        default_prediction=evaluation.get("default_prediction"),
+        default_atol=evaluation.get("default_atol", 0.02),
     )
 
 def parse_rebalance_config(raw: Dict[str, Any]) -> RebalanceConfig:
